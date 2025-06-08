@@ -1,63 +1,83 @@
-dataset_path = "/home/minc/OCR_project/dataset/emnist/versions/3/"
-
 import numpy as np
 import pandas as pd
-# import tensorflow as tf
-from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from keras.models import Model
-from keras.utils import to_categorical
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from sklearn.model_selection import train_test_split
 
-# 1. 데이터 불러오기
+# 데이터 경로
+dataset_path = "/home/minc/OCR_project/dataset/emnist/versions/3/"
+
+# 데이터 로드
 print("Loading data...")
 data = pd.read_csv(dataset_path + 'emnist-byclass-train.csv')
 labels = data.iloc[:, 0].values
-images = data.iloc[:, 1:].values.reshape(-1, 28, 28, 1).astype('float32') / 255.0
-images = np.transpose(images, (0, 2, 1, 3))  # Transpose 필요 (Kaggle 기준)
+images = data.iloc[:, 1:].values.reshape(-1, 28, 28).astype('float32') / 255.0
+images = np.transpose(images, (0, 2, 1))  # transpose
 
-# 2. 매핑 파일을 읽어서 대소문자 통합된 36개 클래스 만들기
+# 라벨 매핑
 def load_mapping(mapping_path):
     label_to_char = {}
     with open(mapping_path, 'r') as f:
         for line in f:
             label, ascii_code = map(int, line.strip().split())
-            char = chr(ascii_code).upper()  # 대소문자 통합
+            char = chr(ascii_code).upper()
             label_to_char[label] = char
     return label_to_char
 
 mapping = load_mapping(dataset_path + 'emnist-byclass-mapping.txt')
-
-# 유일한 문자만 추출해 대소문자 통합된 클래스 인덱스 생성
 unique_chars = sorted(set(mapping.values()))
 char_to_index = {char: i for i, char in enumerate(unique_chars)}
-print(f"총 클래스 수: {len(char_to_index)} → {char_to_index}")
-
-# 라벨 변환
 labels_mapped = np.array([char_to_index[mapping[l]] for l in labels])
 labels_categorical = to_categorical(labels_mapped, num_classes=len(char_to_index))
 
-# 3. 훈련/검증 데이터 분리
+# 학습/검증 분리
 X_train, X_val, y_train, y_val = train_test_split(images, labels_categorical, test_size=0.1, random_state=42)
 
-# 4. 모델 정의 (Functional API)
-input_layer = Input(shape=(28, 28, 1))
-x = Conv2D(32, kernel_size=3, activation='relu')(input_layer)
-x = MaxPooling2D(pool_size=2)(x)
-x = Conv2D(64, kernel_size=3, activation='relu')(x)
-x = MaxPooling2D(pool_size=2)(x)
+# tf.data.Dataset 구성
+def preprocess(image, label):
+    # image: 28x28 → 224x224x3 변환
+    image = tf.expand_dims(image, axis=-1)  # (28,28,1)
+    image = tf.image.resize(image, [224,224])  # (224,224,1)
+    image = tf.image.grayscale_to_rgb(image)   # (224,224,3)
+    return image, label
+
+train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+train_dataset = train_dataset.shuffle(buffer_size=1024).map(preprocess).batch(64).prefetch(tf.data.AUTOTUNE)
+
+val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+val_dataset = val_dataset.map(preprocess).batch(64).prefetch(tf.data.AUTOTUNE)
+
+# VGG16 모델 불러오기
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+base_model.trainable = False
+
+# Custom classifier
+x = base_model.output
 x = Flatten()(x)
+x = Dense(256, activation='relu')(x)
 x = Dropout(0.5)(x)
-x = Dense(128, activation='relu')(x)
 output_layer = Dense(len(char_to_index), activation='softmax')(x)
 
-model = Model(inputs=input_layer, outputs=output_layer)
+model = Model(inputs=base_model.input, outputs=output_layer)
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-
 model.summary()
 
-# 5. 학습
-model.fit(X_train, y_train, epochs=10, batch_size=128, validation_data=(X_val, y_val))
+# 콜백
+early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3)
 
-# 6. 모델 저장
-model.save('emnist_byclass_cnn_model.h5')
-print("모델이 emnist_byclass_cnn_model.h5로 저장되었습니다.")
+# 학습
+model.fit(
+    train_dataset,
+    validation_data=val_dataset,
+    epochs=20,
+    callbacks=[early_stop, reduce_lr]
+)
+
+# 저장
+model.save("emnist_byclass_vgg16_transfer.h5")
+print("모델 저장 완료: emnist_byclass_vgg16_transfer.h5")
