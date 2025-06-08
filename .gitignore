@@ -1,5 +1,5 @@
 .venv/
 
 dataset/
-images/
+# images/
 output_images/
