@@ -1,7 +1,6 @@
 .venv/
 
 dataset/
-images/
+# images/
 output_images/
-
 *.h5
