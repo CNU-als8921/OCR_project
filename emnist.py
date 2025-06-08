@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tensorflow.keras.applications import VGG16
+from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Flatten, Dropout
 from tensorflow.keras.utils import to_categorical
@@ -39,10 +39,10 @@ X_train, X_val, y_train, y_val = train_test_split(images, labels_categorical, te
 
 # tf.data.Dataset 구성
 def preprocess(image, label):
-    # image: 28x28 → 224x224x3 변환
+    # image: 28x28 → 32x32x3 변환
     image = tf.expand_dims(image, axis=-1)  # (28,28,1)
-    image = tf.image.resize(image, [224,224])  # (224,224,1)
-    image = tf.image.grayscale_to_rgb(image)   # (224,224,3)
+    image = tf.image.resize(image, [32,32])  # (32,32,1)
+    image = tf.image.grayscale_to_rgb(image)   # (32,32,3)
     return image, label
 
 train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
@@ -51,8 +51,8 @@ train_dataset = train_dataset.shuffle(buffer_size=1024).map(preprocess).batch(64
 val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
 val_dataset = val_dataset.map(preprocess).batch(64).prefetch(tf.data.AUTOTUNE)
 
-# VGG16 모델 불러오기
-base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+# ResNet50V2 모델 불러오기
+base_model = ResNet50V2(weights='imagenet', include_top=False, input_shape=(32, 32, 3))
 base_model.trainable = False
 
 # Custom classifier
@@ -79,5 +79,5 @@ model.fit(
 )
 
 # 저장
-model.save("emnist_byclass_vgg16_transfer.h5")
-print("모델 저장 완료: emnist_byclass_vgg16_transfer.h5")
+model.save("emnist_byclass_resnet50v2_transfer.h5")
+print("모델 저장 완료: emnist_byclass_resnet50v2_transfer.h5")
