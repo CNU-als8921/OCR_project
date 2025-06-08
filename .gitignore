@@ -3,3 +3,5 @@
 dataset/
 images/
 output_images/
+
+*.h5
