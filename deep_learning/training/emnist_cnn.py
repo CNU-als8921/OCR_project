@@ -1,10 +1,14 @@
 import numpy as np
 import os
+import pandas as pd
 from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
+from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization, Input
 from keras.utils import to_categorical
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
+from keras.optimizers import Adam
+from keras.regularizers import l2
 
 # 데이터 경로
 dataset_path = "/home/minc/OCR_project/dataset/emnist/versions/3/"
@@ -39,43 +43,61 @@ X_train, X_val, y_train, y_val = train_test_split(images, labels_categorical, te
 X_train = X_train.reshape(-1, 28, 28, 1)
 X_val = X_val.reshape(-1, 28, 28, 1)
 
-# CNN 모델 정의
+# 데이터 증강 설정
+datagen = ImageDataGenerator(
+    rotation_range=10,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    zoom_range=0.1,
+    shear_range=0.1,
+    fill_mode='nearest',
+    validation_split=0.1
+)
+
+# CNN 모델 정의 - 개선된 버전
 model = Sequential([
+    # 입력 레이어
+    Input(shape=(28, 28, 1)),
+    
     # 첫 번째 컨볼루션 블록
-    Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=(28, 28, 1)),
+    Conv2D(64, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
-    Conv2D(32, (3, 3), activation='relu', padding='same'),
+    Conv2D(64, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.25),
+    Dropout(0.3),
 
     # 두 번째 컨볼루션 블록
-    Conv2D(64, (3, 3), activation='relu', padding='same'),
+    Conv2D(128, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
-    Conv2D(64, (3, 3), activation='relu', padding='same'),
+    Conv2D(128, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.25),
+    Dropout(0.3),
 
     # 세 번째 컨볼루션 블록
-    Conv2D(128, (3, 3), activation='relu', padding='same'),
+    Conv2D(256, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
-    Conv2D(128, (3, 3), activation='relu', padding='same'),
+    Conv2D(256, (3, 3), activation='relu', padding='same', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
     MaxPooling2D((2, 2)),
-    Dropout(0.25),
+    Dropout(0.3),
 
     # 완전연결층
     Flatten(),
-    Dense(512, activation='relu'),
+    Dense(1024, activation='relu', kernel_regularizer=l2(1e-4)),
+    BatchNormalization(),
+    Dropout(0.5),
+    Dense(512, activation='relu', kernel_regularizer=l2(1e-4)),
     BatchNormalization(),
     Dropout(0.5),
     Dense(len(char_to_index), activation='softmax')
 ])
 
-# 모델 컴파일
+# 모델 컴파일 - 개선된 옵티마이저 설정
+optimizer = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
 model.compile(
-    optimizer='adam',
+    optimizer=optimizer,
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )
@@ -83,28 +105,39 @@ model.compile(
 # 모델 구조 출력
 model.summary()
 
-# 콜백
+# 콜백 설정 개선
 early_stop = EarlyStopping(
     monitor='val_loss',
-    patience=5,
-    restore_best_weights=True
+    patience=10,
+    restore_best_weights=True,
+    verbose=1
 )
+
 reduce_lr = ReduceLROnPlateau(
     monitor='val_loss',
-    factor=0.5,
-    patience=3,
-    min_lr=1e-6
+    factor=0.2,
+    patience=5,
+    min_lr=1e-7,
+    verbose=1
+)
+
+checkpoint = ModelCheckpoint(
+    'best_model.h5',
+    monitor='val_accuracy',
+    save_best_only=True,
+    verbose=1
 )
 
 # 학습
 history = model.fit(
-    X_train, y_train,
+    datagen.flow(X_train, y_train, batch_size=128),
     validation_data=(X_val, y_val),
-    epochs=50,
-    batch_size=64,
-    callbacks=[early_stop, reduce_lr]
+    epochs=100,
+    steps_per_epoch=len(X_train) // 128,
+    callbacks=[early_stop, reduce_lr, checkpoint],
+    verbose=1
 )
 
-# 모델 저장
+# 최종 모델 저장
 model.save("emnist_byclass_cnn_model.h5")
 print("모델 저장 완료: emnist_byclass_cnn_model.h5") 
