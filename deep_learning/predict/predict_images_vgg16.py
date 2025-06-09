@@ -3,9 +3,15 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import os
+import sys
+
+# 상위 디렉토리를 파이썬 경로에 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(project_root)
 
 # 모델 로드
-model = load_model('emnist_byclass_resnet50v2_transfer.h5')
+model = load_model(os.path.join(project_root, 'deep_learning/models/emnist_byclass_vgg16_transfer.h5'))
 
 # 라벨 매핑 로드
 def load_mapping(mapping_path):
@@ -17,7 +23,7 @@ def load_mapping(mapping_path):
             label_to_char[label] = char
     return label_to_char
 
-mapping = load_mapping('dataset/emnist/versions/3/emnist-byclass-mapping.txt')
+mapping = load_mapping(os.path.join(project_root, 'deep_learning/data/emnist/versions/3/emnist-byclass-mapping.txt'))
 unique_chars = sorted(set(mapping.values()))
 char_to_index = {char: i for i, char in enumerate(unique_chars)}
 index_to_char = {i: char for char, i in char_to_index.items()}
@@ -28,12 +34,12 @@ def preprocess_image(img_path):
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
     img_array = img_array / 255.0
-    # 그레이스케일을 RGB로 변환
+    # VGG16은 RGB 입력이 필요하므로 채널을 3개로 복제
     img_array = np.repeat(img_array, 3, axis=-1)
     return img_array
 
 # output_images 디렉토리의 모든 이미지에 대해 예측 수행
-output_dir = 'output_images'
+output_dir = os.path.join(project_root, 'deep_learning/preprocessing/output_images')
 results = []
 # 파일 이름순 정렬
 for filename in sorted(os.listdir(output_dir)):
@@ -49,6 +55,6 @@ for filename in sorted(os.listdir(output_dir)):
         results.append((filename, predicted_char, confidence))
 
 # 모든 결과를 마지막에 출력
-print("\n=== ResNet50V2 기반 모델 예측 결과 ===")
+print("\n=== VGG16 기반 모델 예측 결과 ===")
 for filename, predicted_char, confidence in results:
     print(f"파일: {filename}, 예측: {predicted_char}, 신뢰도: {confidence:.2%}") 

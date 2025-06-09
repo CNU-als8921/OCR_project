@@ -3,13 +3,15 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import os
+import sys
 
-# 현재 스크립트의 디렉토리 경로 가져오기
+# 상위 디렉토리를 파이썬 경로에 추가
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+project_root = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(project_root)
 
 # 모델 로드
-model = load_model(os.path.join(project_root, 'models/emnist_byclass_resnet50v2_transfer.h5'))
+model = load_model(os.path.join(project_root, 'deep_learning/models/emnist_byclass_resnet50v2_transfer.h5'))
 
 # 라벨 매핑 로드
 def load_mapping(mapping_path):
@@ -21,7 +23,7 @@ def load_mapping(mapping_path):
             label_to_char[label] = char
     return label_to_char
 
-mapping = load_mapping(os.path.join(project_root, 'dataset/emnist/versions/3/emnist-byclass-mapping.txt'))
+mapping = load_mapping(os.path.join(project_root, 'deep_learning/data/emnist/versions/3/emnist-byclass-mapping.txt'))
 unique_chars = sorted(set(mapping.values()))
 char_to_index = {char: i for i, char in enumerate(unique_chars)}
 index_to_char = {i: char for char, i in char_to_index.items()}
@@ -37,7 +39,7 @@ def preprocess_image(img_path):
     return img_array  # (1, 32, 32, 3)
 
 # output_images 디렉토리의 모든 이미지에 대해 예측 수행
-output_dir = os.path.join(project_root, 'output_images')
+output_dir = os.path.join(project_root, 'deep_learning/preprocessing/output_images')
 results = []
 # 파일 이름순 정렬
 for filename in sorted(os.listdir(output_dir)):
