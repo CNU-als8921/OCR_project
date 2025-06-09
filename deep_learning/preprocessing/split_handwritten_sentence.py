@@ -32,33 +32,31 @@ def split_handwritten_sentence(image: np.ndarray) -> list:
     binary = cv2.adaptiveThreshold(
         image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
 
-    # 4. 문자 컴포넌트 추출
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
-    chars = []
-    for i in range(1, num_labels):
-        x, y, w, h, area = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP], \
-                           stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT], stats[i, cv2.CC_STAT_AREA]
-        if area > 2 and w > 1 and h > 1:
-            chars.append((x, y, w, h))
-    # 중첩 제거
-    def filter_nested_components(characters):
-        filtered = []
-        for i, (x1, y1, w1, h1) in enumerate(characters):
-            rect1 = (x1, y1, x1 + w1, y1 + h1)
-            is_nested = False
-            for j, (x2, y2, w2, h2) in enumerate(characters):
-                if i == j:
-                    continue
-                rect2 = (x2, y2, x2 + w2, y2 + h2)
-                if (rect1[0] >= rect2[0] and rect1[1] >= rect2[1] and rect1[2] <= rect2[2] and rect1[3] <= rect2[3]):
-                    is_nested = True
-                    break
-            if not is_nested:
-                filtered.append((x1, y1, w1, h1))
-        return filtered
-    chars = filter_nested_components(chars)
-    # x좌표 기준 정렬
-    chars = sorted(chars, key=lambda c: c[0])
+    # 4. x축 projection 기반 문자 분할
+    def split_by_x_projection(binary):
+        proj = np.sum(binary, axis=0)
+        threshold = 10  # 픽셀 합이 이 값 이상이면 글자가 있다고 판단
+        in_char = False
+        chars = []
+        start = 0
+        for i, val in enumerate(proj):
+            if not in_char and val > threshold:
+                in_char = True
+                start = i
+            elif in_char and val <= threshold:
+                in_char = False
+                end = i
+                chars.append((start, end))
+        if in_char:
+            chars.append((start, len(proj)))
+        # y축 범위는 전체 nonzero 범위로
+        ys, xs = np.where(binary > 0)
+        if len(ys) == 0:
+            return []
+        y_min, y_max = ys.min(), ys.max()
+        return [(x0, y_min, x1-x0, y_max-y_min+1) for x0, x1 in chars if x1-x0 > 1]
+
+    chars = split_by_x_projection(binary)
 
     # 5. 문자별 추출 및 후처리
     def extract_character(img, x, y, w, h, padding=2):
@@ -67,7 +65,7 @@ def split_handwritten_sentence(image: np.ndarray) -> list:
         x2 = min(img.shape[1], x + w + padding)
         y2 = min(img.shape[0], y + h + padding)
         char_img = img[y1:y2, x1:x2].copy()
-        # 중심 기준 여러 컨투어 남기기
+        # 중심 기준 여러 컨투어 남기기 (옵션)
         center_x = (char_img.shape[1] - 1) / 2
         center_y = (char_img.shape[0] - 1) / 2
         max_dist = ((center_x)**2 + (center_y)**2) ** 0.5
