@@ -3,9 +3,9 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import uvicorn
-import tensorflow as tf
-from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
+
+from keras.models import Model
+from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
 import cv2
 import logging
 from datetime import datetime
@@ -132,7 +132,6 @@ class Predictor:
             logger.info(f"예측된 클래스: {predicted_class} ({CLASS_MAPPING[predicted_class]})")
             
             return {
-                'class': int(predicted_class),
                 'character': CLASS_MAPPING[predicted_class],
                 'confidence': float(predictions[0][predicted_class])
             }
@@ -147,13 +146,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 출처 허용
+    allow_origins=["*"],  # 개발 중에는 모든 출처 허용, 프로덕션에서는 특정 도메인만 허용하도록 수정
     allow_credentials=True,
-    allow_methods=["*"],  # 모든 HTTP 메서드 허용
-    allow_headers=["*"],  # 모든 헤더 허용
+    allow_methods=["GET", "POST", "OPTIONS"],  # 필요한 HTTP 메서드만 명시
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 predictor = Predictor()
+
+@app.get("/")
+async def root():
+    return {"message": "OCR Prediction Server is running"}
 
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(...)):
@@ -225,4 +229,9 @@ async def predict_image(file: UploadFile = File(...)):
         )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(
+        app, 
+        host="0.0.0.0",  # 모든 네트워크 인터페이스에서 접근 가능
+        port=8000,
+        log_level="info"
+    ) 
