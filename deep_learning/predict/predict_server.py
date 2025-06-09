@@ -228,6 +228,42 @@ async def predict_image(file: UploadFile = File(...)):
             content={"error": str(e)}
         )
 
+@app.post("/predict-sentence")
+async def predict_sentence(file: UploadFile = File(...)):
+    try:
+        # 이미지 파일 읽기
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+        
+        if image is None:
+            logger.error("이미지를 읽을 수 없습니다.")
+            return JSONResponse(
+                status_code=400,
+                content={"error": "이미지를 읽을 수 없습니다."}
+            )
+        
+        # 이미지 저장
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_filename = os.path.splitext(file.filename)[0]
+        save_path = os.path.join(test_dir, f"sentence_{original_filename}_{timestamp}.png")
+        
+        # 이미지 저장
+        cv2.imwrite(save_path, image)
+        logger.info(f"문장 이미지 저장됨: {save_path}")
+        
+        return {
+            "message": "문장 이미지가 성공적으로 저장되었습니다.",
+            "file_path": save_path
+        }
+        
+    except Exception as e:
+        logger.error(f"서버 오류: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
 if __name__ == "__main__":
     uvicorn.run(
         app, 
