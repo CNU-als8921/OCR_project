@@ -11,11 +11,12 @@ from keras.optimizers import Adam
 from keras.regularizers import l2
 
 # 데이터 경로
-dataset_path = "/home/minc/OCR_project/dataset/emnist/versions/3/"
+project_root = "/home/minc/OCR_project/"
+dataset_path = os.path.join(project_root, 'deep_learning/data/emnist/')
 
 # 데이터 로드
 print("Loading data...")
-data = pd.read_csv(dataset_path + 'emnist-byclass-train.csv')
+data = pd.read_csv(os.path.join(dataset_path, 'emnist-byclass-train.csv'))
 labels = data.iloc[:, 0].values
 images = data.iloc[:, 1:].values.reshape(-1, 28, 28).astype('float32') / 255.0
 images = np.transpose(images, (0, 2, 1))  # transpose
@@ -30,7 +31,7 @@ def load_mapping(mapping_path):
             label_to_char[label] = char
     return label_to_char
 
-mapping = load_mapping(dataset_path + 'emnist-byclass-mapping.txt')
+mapping = load_mapping(os.path.join(dataset_path, 'emnist-byclass-mapping.txt'))
 unique_chars = sorted(set(mapping.values()))
 char_to_index = {char: i for i, char in enumerate(unique_chars)}
 labels_mapped = np.array([char_to_index[mapping[l]] for l in labels])
