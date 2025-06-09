@@ -1,8 +1,10 @@
 .venv/
 
-dataset/
-models/
+/dataset/
 
-# images/
-output_images/
+
+/deep_learning/data/*
+/deep_learning/models/*
+
+
 *.h5
