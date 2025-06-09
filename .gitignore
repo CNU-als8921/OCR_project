@@ -8,3 +8,6 @@
 /deep_learning/test/*
 
 *.h5
+
+*.pyc
+__pycache__/
