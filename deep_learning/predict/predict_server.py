@@ -1,4 +1,6 @@
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) )
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
@@ -9,6 +11,7 @@ from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Dropout, B
 import cv2
 import logging
 from datetime import datetime
+from deep_learning.preprocessing.split_handwritten_sentence import split_handwritten_sentence
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -235,34 +238,31 @@ async def predict_sentence(file: UploadFile = File(...)):
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-        
         if image is None:
             logger.error("이미지를 읽을 수 없습니다.")
-            return JSONResponse(
-                status_code=400,
-                content={"error": "이미지를 읽을 수 없습니다."}
-            )
-        
-        # 이미지 저장
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        original_filename = os.path.splitext(file.filename)[0]
-        save_path = os.path.join(test_dir, f"sentence_{original_filename}_{timestamp}.png")
-        
-        # 이미지 저장
-        cv2.imwrite(save_path, image)
-        logger.info(f"문장 이미지 저장됨: {save_path}")
-        
-        return {
-            "message": "문장 이미지가 성공적으로 저장되었습니다.",
-            "file_path": save_path
-        }
-        
+            return JSONResponse(status_code=400, content={"error": "이미지를 읽을 수 없습니다."})
+
+        # 문장 이미지에서 문자 분리
+        char_images = split_handwritten_sentence(image)
+        if not char_images:
+            logger.error("문자를 분리할 수 없습니다.")
+            return JSONResponse(status_code=400, content={"error": "문자를 분리할 수 없습니다."})
+
+        # 각 문자 인식
+        result_chars = []
+        for char_img in char_images:
+            if len(char_img.shape) == 2:
+                char_img = np.expand_dims(char_img, axis=-1)
+            pred = predictor.predict(char_img)
+            result_chars.append(pred['character'])
+
+        sentence = ''.join(result_chars)
+        logger.info(f"예측된 문장: {sentence}")
+        return {"sentence": sentence, "characters": result_chars}
+
     except Exception as e:
         logger.error(f"서버 오류: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
     uvicorn.run(
