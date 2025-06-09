@@ -5,6 +5,6 @@
 
 /deep_learning/data/*
 /deep_learning/models/*
-
+/deep_learning/test/*
 
 *.h5
