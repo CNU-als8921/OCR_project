@@ -90,7 +90,7 @@ class Predictor:
     
     def _load_weights(self):
         # 가중치 파일 경로
-        weights_path = '/home/minc/OCR_project/deep_learning/models/best_model.h5'
+        weights_path = os.path.join(project_root, 'deep_learning/models/emnist_byclass_cnn_model.h5')
         
         try:
             # 가중치만 로드
