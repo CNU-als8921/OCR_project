@@ -24,7 +24,7 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 test_dir = os.path.join(project_root, 'deep_learning/test')
 os.makedirs(test_dir, exist_ok=True)
 
-# EMNIST 클래스 매핑 (0-9, A-Z, a-z)
+# EMNIST 클래스 매핑 (0-9, A-Z)
 CLASS_MAPPING = {
     0: '0', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9',
     10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I', 19: 'J',
@@ -54,31 +54,34 @@ class Predictor:
         inputs = Input(shape=(28, 28, 1))
         
         # 첫 번째 컨볼루션 블록
-        x = Conv2D(32, kernel_size=(3, 3), padding='same', activation='relu')(inputs)
+        x = Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu')(inputs)
         x = BatchNormalization()(x)
-        x = Conv2D(32, kernel_size=(3, 3), padding='same', activation='relu')(x)
+        x = Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu')(x)
         x = BatchNormalization()(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
         x = Dropout(0.25)(x)
         
         # 두 번째 컨볼루션 블록
-        x = Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu')(x)
+        x = Conv2D(128, kernel_size=(3, 3), padding='same', activation='relu')(x)
         x = BatchNormalization()(x)
-        x = Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu')(x)
+        x = Conv2D(128, kernel_size=(3, 3), padding='same', activation='relu')(x)
         x = BatchNormalization()(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
         x = Dropout(0.25)(x)
         
         # 세 번째 컨볼루션 블록
-        x = Conv2D(128, kernel_size=(3, 3), padding='same', activation='relu')(x)
+        x = Conv2D(256, kernel_size=(3, 3), padding='same', activation='relu')(x)
         x = BatchNormalization()(x)
-        x = Conv2D(128, kernel_size=(3, 3), padding='same', activation='relu')(x)
+        x = Conv2D(256, kernel_size=(3, 3), padding='same', activation='relu')(x)
         x = BatchNormalization()(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
         x = Dropout(0.25)(x)
         
         # 완전 연결 레이어
         x = Flatten()(x)
+        x = Dense(1024, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.5)(x)
         x = Dense(512, activation='relu')(x)
         x = BatchNormalization()(x)
         x = Dropout(0.5)(x)
@@ -90,7 +93,7 @@ class Predictor:
     
     def _load_weights(self):
         # 가중치 파일 경로
-        weights_path = os.path.join(project_root, 'deep_learning/models/emnist_byclass_cnn_model.h5')
+        weights_path = os.path.join(project_root, 'deep_learning/models/balance/final_model.h5')
         
         try:
             # 가중치만 로드
