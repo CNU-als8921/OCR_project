@@ -3,12 +3,11 @@ import numpy as np
 import cv2
 from keras.models import Model
 from keras.layers import Input, Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
-from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.utils import to_categorical
+from keras.optimizers import Adam
 import logging
-import random
-from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -159,9 +158,13 @@ def create_transfer_model(base_model):
     x = Dropout(0.5)(x)
     outputs = Dense(36, activation='softmax')(x)
     
-    # 새로운 모델 생성
+    # 새로운 모델 생성 (낮은 학습률로 설정)
     model = Model(inputs=base_model.input, outputs=outputs)
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(
+        optimizer=Adam(learning_rate=1e-4),  # 학습률 낮춤
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
     
     return model
 
@@ -170,7 +173,7 @@ def train_model():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # 데이터 로드
-    data_dir = os.path.join(project_root, 'deep_learning/data/custom_handwriting')
+    data_dir = os.path.join(project_root, 'data/custom_handwriting')
     images, labels = load_and_preprocess_data(data_dir)
     
     # 데이터 증강
@@ -192,7 +195,7 @@ def train_model():
     
     # 기본 모델 생성 및 가중치 로드
     base_model = create_base_model()
-    weights_path = os.path.join(project_root, 'deep_learning/models/emnist_byclass_cnn_model.h5')
+    weights_path = os.path.join(project_root, 'models/emnist_byclass_cnn_model.h5')
     try:
         base_model.load_weights(weights_path)
         logger.info("기존 모델 가중치 로드 완료")
@@ -203,7 +206,7 @@ def train_model():
     # 전이학습 모델 생성
     model = create_transfer_model(base_model)
     
-    # 콜백 설정
+    # 콜백 설정 수정
     checkpoint = ModelCheckpoint(
         os.path.join(project_root, 'deep_learning/models/transfer_learning_model.h5'),
         monitor='val_accuracy',
@@ -214,16 +217,16 @@ def train_model():
     
     early_stopping = EarlyStopping(
         monitor='val_accuracy',
-        patience=5,
+        patience=7,  # patience 증가
         restore_best_weights=True,
         verbose=1
     )
     
     reduce_lr = ReduceLROnPlateau(
         monitor='val_loss',
-        factor=0.2,
-        patience=3,
-        min_lr=1e-6,
+        factor=0.1,  # learning rate 감소 비율 조정
+        patience=4,  # patience 증가
+        min_lr=1e-7,  # 최소 learning rate 조정
         verbose=1
     )
     
@@ -232,8 +235,8 @@ def train_model():
     history = model.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
-        epochs=50,
-        batch_size=32,
+        epochs=30,
+        batch_size=32,  # batch size 증가
         callbacks=[checkpoint, early_stopping, reduce_lr]
     )
     
