@@ -133,13 +133,25 @@ class Predictor:
             predictions = self._model.predict(image_data, verbose=0)
             predicted_class = np.argmax(predictions[0])
             
+            # 상위 5개 예측 결과 계산
+            top_5_indices = np.argsort(predictions[0])[-5:][::-1]
+            top_5_predictions = [
+                {
+                    'character': CLASS_MAPPING[idx],
+                    'confidence': float(predictions[0][idx])
+                }
+                for idx in top_5_indices
+            ]
+            
             # 예측 결과 로깅
             logger.info(f"예측 확률 분포: {predictions[0]}")
+            logger.info(f"상위 5개 예측: {top_5_predictions}")
             logger.info(f"예측된 클래스: {predicted_class} ({CLASS_MAPPING[predicted_class]})")
             
             return {
                 'character': CLASS_MAPPING[predicted_class],
-                'confidence': float(predictions[0][predicted_class])
+                'confidence': float(predictions[0][predicted_class]),
+                'top_5_predictions': top_5_predictions
             }
         except Exception as e:
             logger.error(f"예측 중 오류 발생: {str(e)}")
