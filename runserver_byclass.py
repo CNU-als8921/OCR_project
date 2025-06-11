@@ -168,20 +168,49 @@ async def save_handwriting_images(images: List[UploadFile] = File(...)):
     try:
         saved_files = []
         for image in images:
+            # 파일명에서 레이블 추출 (예: "18_6.png" -> "18")
+            filename = image.filename
+            label = filename.split('_')[0]
+            
+            # 레이블을 문자로 변환 (10 이상은 A-Z로 매핑)
+            label_num = int(label)
+            if label_num >= 10:
+                folder_name = CLASS_MAPPING[label_num]  # 10->'A', 11->'B', ...
+            else:
+                folder_name = label  # 0-9는 그대로 사용
+            
+            # 레이블에 해당하는 폴더 생성
+            label_dir = os.path.join(custom_handwriting_dir, folder_name)
+            os.makedirs(label_dir, exist_ok=True)
+            
+            # 이미지 파일 읽기
             contents = await image.read()
             nparr = np.frombuffer(contents, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+            
             if img is None:
-                logger.error(f"이미지 읽기 오류: {image.filename}")
+                logger.error(f"이미지 읽기 오류: {filename}")
                 continue
-            save_path = os.path.join(custom_handwriting_dir, image.filename)
-            cv2.imwrite(save_path, img)
-            saved_files.append(image.filename)
-
-        return {"message":"이미지 저장 완료", "saved_files":saved_files}
+            
+            # 흑백 반전
+            inverted_img = 255 - img
+            
+            # 항상 타임스탬프 추가
+            base_name, ext = os.path.splitext(filename)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_filename = f"{base_name}_{timestamp}{ext}"
+            save_path = os.path.join(label_dir, new_filename)
+            
+            # 반전된 이미지 저장
+            cv2.imwrite(save_path, inverted_img)
+            saved_files.append(new_filename)
+            logger.info(f"이미지 저장됨: {save_path}")
+        
+        return {"message": "이미지 저장 완료", "saved_files": saved_files}
+    
     except Exception as e:
         logger.error(f"저장 오류: {str(e)}")
-        return JSONResponse(status_code=500, content={"error":str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
